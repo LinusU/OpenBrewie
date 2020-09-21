@@ -34,7 +34,7 @@ P136 | Open boil return
 P137 | Close boil return
 P150 | Set mash heater target | Target temp, e.g. `320` for 32ºC, `0` to turn off, or `398.2` for 39.82ºC
 P151 | Set boil heater target | Target temp, e.g. `320` for 32ºC, `0` to turn off, or `398.2` for 39.82ºC
-P205 | Controls some kind of extra logging from the IO board | `0` to turn off, `1` to turn on
+P205 | Controls the fans, and some kind of extra logging from the IO board | `0` to turn off, `1` to turn on
 P999 | Close all valves
 
 ## Startup
