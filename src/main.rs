@@ -148,36 +148,70 @@ fn main() {
 
         editor.add_history_entry(&line);
 
-        let result = match line.as_str() {
-            "open water inlet" => board.send_cmd(&BrewieCommand::P110),
-            "close water inlet" => board.send_cmd(&BrewieCommand::P111),
-            "open mash inlet" => board.send_cmd(&BrewieCommand::P112),
-            "close mash inlet" => board.send_cmd(&BrewieCommand::P113),
-            "open boil inlet" => board.send_cmd(&BrewieCommand::P114),
-            "close boil inlet" => board.send_cmd(&BrewieCommand::P115),
-            "open hop 1" => board.send_cmd(&BrewieCommand::P116),
-            "close hop 1" => board.send_cmd(&BrewieCommand::P117),
-            "open hop 2" => board.send_cmd(&BrewieCommand::P118),
-            "close hop 2" => board.send_cmd(&BrewieCommand::P119),
-            "open hop 3" => board.send_cmd(&BrewieCommand::P120),
-            "close hop 3" => board.send_cmd(&BrewieCommand::P121),
-            "open hop 4" => board.send_cmd(&BrewieCommand::P122),
-            "close hop 4" => board.send_cmd(&BrewieCommand::P123),
-            "start mash pump" => board.send_cmd(&BrewieCommand::P124),
-            "stop mash pump" => board.send_cmd(&BrewieCommand::P125),
-            "start boil pump" => board.send_cmd(&BrewieCommand::P126),
-            "stop boil pump" => board.send_cmd(&BrewieCommand::P127),
-            "open cool inlet" => board.send_cmd(&BrewieCommand::P128),
-            "close cool inlet" => board.send_cmd(&BrewieCommand::P129),
-            "open cool valve" => board.send_cmd(&BrewieCommand::P130),
-            "close cool valve" => board.send_cmd(&BrewieCommand::P131),
-            "open outlet valve" => board.send_cmd(&BrewieCommand::P132),
-            "close outlet valve" => board.send_cmd(&BrewieCommand::P133),
-            "open mash return" => board.send_cmd(&BrewieCommand::P134),
-            "close mash return" => board.send_cmd(&BrewieCommand::P135),
-            "open boil return" => board.send_cmd(&BrewieCommand::P136),
-            "close boil return" => board.send_cmd(&BrewieCommand::P137),
-            line => { println!("Unknown command: {}", line); continue }
+        let result = match line.split_whitespace().collect::<Vec<&str>>().as_slice() {
+            ["open", "water", "inlet"] => board.send_cmd(&BrewieCommand::P110),
+            ["close", "water", "inlet"] => board.send_cmd(&BrewieCommand::P111),
+            ["open", "mash", "inlet"] => board.send_cmd(&BrewieCommand::P112),
+            ["close", "mash", "inlet"] => board.send_cmd(&BrewieCommand::P113),
+            ["open", "boil", "inlet"] => board.send_cmd(&BrewieCommand::P114),
+            ["close", "boil", "inlet"] => board.send_cmd(&BrewieCommand::P115),
+
+            ["open", "hop", "1"] => board.send_cmd(&BrewieCommand::P116),
+            ["close", "hop", "1"] => board.send_cmd(&BrewieCommand::P117),
+            ["open", "hop", "2"] => board.send_cmd(&BrewieCommand::P118),
+            ["close", "hop", "2"] => board.send_cmd(&BrewieCommand::P119),
+            ["open", "hop", "3"] => board.send_cmd(&BrewieCommand::P120),
+            ["close", "hop", "3"] => board.send_cmd(&BrewieCommand::P121),
+            ["open", "hop", "4"] => board.send_cmd(&BrewieCommand::P122),
+            ["close", "hop", "4"] => board.send_cmd(&BrewieCommand::P123),
+
+            ["start", "mash", "pump"] => board.send_cmd(&BrewieCommand::P124),
+            ["stop", "mash", "pump"] => board.send_cmd(&BrewieCommand::P125),
+            ["start", "boil", "pump"] => board.send_cmd(&BrewieCommand::P126),
+            ["stop", "boil", "pump"] => board.send_cmd(&BrewieCommand::P127),
+
+            ["open", "cool", "inlet"] => board.send_cmd(&BrewieCommand::P128),
+            ["close", "cool", "inlet"] => board.send_cmd(&BrewieCommand::P129),
+            ["open", "cool", "valve"] => board.send_cmd(&BrewieCommand::P130),
+            ["close", "cool", "valve"] => board.send_cmd(&BrewieCommand::P131),
+            ["open", "outlet", "valve"] => board.send_cmd(&BrewieCommand::P132),
+            ["close", "outlet", "valve"] => board.send_cmd(&BrewieCommand::P133),
+
+            ["open", "mash", "return"] => board.send_cmd(&BrewieCommand::P134),
+            ["close", "mash", "return"] => board.send_cmd(&BrewieCommand::P135),
+            ["open", "boil", "return"] => board.send_cmd(&BrewieCommand::P136),
+            ["close", "boil", "return"] => board.send_cmd(&BrewieCommand::P137),
+
+            ["set", "mash", "heater", temp_str] => {
+                let temp: u16 = match temp_str.parse() {
+                    Ok(temp) => temp,
+                    Err(_) => { println!("Invalid temperature: {}", temp_str); continue }
+                };
+
+                board.send_cmd(&BrewieCommand::P150(temp))
+            },
+
+            ["set", "boil", "heater", temp_str] => {
+                let temp: u16 = match temp_str.parse() {
+                    Ok(temp) => temp,
+                    Err(_) => { println!("Invalid temperature: {}", temp_str); continue }
+                };
+
+                board.send_cmd(&BrewieCommand::P151(temp))
+            },
+
+            ["open", "hop", cage, ..] => { println!("Unknown hop cage: {}", cage); continue },
+            ["close", "hop", cage, ..] => { println!("Unknown hop cage: {}", cage); continue },
+
+            ["open", valve, ..] => { println!("Unknown valve: {}", valve); continue },
+            ["close", valve, ..] => { println!("Unknown valve: {}", valve); continue },
+
+            ["start", pump, ..] => { println!("Unknown pump: {}", pump); continue },
+            ["stop", pump, ..] => { println!("Unknown pump: {}", pump); continue },
+
+            ["set", heater, ..] => { println!("Unknown heater: {}", heater); continue },
+
+            _ => { println!("Unknown command: {}", line); continue }
         };
 
         match result {
