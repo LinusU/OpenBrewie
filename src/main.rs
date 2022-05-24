@@ -1,11 +1,21 @@
 use std::fs::File;
 use std::io::prelude::*;
 use std::thread::sleep;
-use std::time::Duration;
 
 use crc_all::Crc;
-use rustyline::{Editor, error::ReadlineError};
 use serialport::SerialPort;
+use std::{io, thread, time::Duration};
+use tui::{
+    backend::CrosstermBackend,
+    widgets::{Widget, Block, Borders, Paragraph},
+    layout::{Layout, Constraint, Direction, Alignment},
+    Terminal
+};
+use crossterm::{
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
 
 fn crc8_maxim(bytes: &[u8]) -> u8 {
     Crc::<u8>::new(0x31, 8, 0x00, 0x00, true).update(bytes)
@@ -126,97 +136,333 @@ impl Board {
     }
 }
 
-fn main() {
-    let mut board = Board::open("/dev/ttyS1");
-    let mut editor = Editor::<()>::new();
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // let mut board = Board::open("/dev/ttyS1");
+    // let mut board = Board::open("/dev/cu.usbmodem11101");
 
-    println!("Resetting board");
-    board.reset();
-    sleep(Duration::from_secs(4));
+    // println!("Resetting board");
+    // board.reset();
+    // sleep(Duration::from_secs(4));
 
-    println!("Initializing board");
-    board.send_cmd(&BrewieCommand::P80(16059.1, (), 1.51759, 1.50194)).unwrap();
-    sleep(Duration::from_secs(4));
+    // println!("Initializing board");
+    // board.send_cmd(&BrewieCommand::P80(16059.1, (), 1.51759, 1.50194)).unwrap();
+    // sleep(Duration::from_secs(4));
 
-    loop {
-        let line = match editor.readline("> ") {
-            Ok(line) => line,
-            Err(ReadlineError::Interrupted) => continue,
-            Err(ReadlineError::Eof) => break,
-            Err(err) => panic!("{}", err),
-        };
+    enable_raw_mode()?;
 
-        editor.add_history_entry(&line);
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
 
-        let result = match line.split_whitespace().collect::<Vec<&str>>().as_slice() {
-            ["open", "water", "inlet"] => board.send_cmd(&BrewieCommand::P110),
-            ["close", "water", "inlet"] => board.send_cmd(&BrewieCommand::P111),
-            ["open", "mash", "inlet"] => board.send_cmd(&BrewieCommand::P112),
-            ["close", "mash", "inlet"] => board.send_cmd(&BrewieCommand::P113),
-            ["open", "boil", "inlet"] => board.send_cmd(&BrewieCommand::P114),
-            ["close", "boil", "inlet"] => board.send_cmd(&BrewieCommand::P115),
+    terminal.draw(|f| {
+        // let size = f.size();
+        // let block = Block::default()
+        //     .title("Block")
+        //     .borders(Borders::ALL);
+        // f.render_widget(block, size);
 
-            ["open", "hop", "1"] => board.send_cmd(&BrewieCommand::P116),
-            ["close", "hop", "1"] => board.send_cmd(&BrewieCommand::P117),
-            ["open", "hop", "2"] => board.send_cmd(&BrewieCommand::P118),
-            ["close", "hop", "2"] => board.send_cmd(&BrewieCommand::P119),
-            ["open", "hop", "3"] => board.send_cmd(&BrewieCommand::P120),
-            ["close", "hop", "3"] => board.send_cmd(&BrewieCommand::P121),
-            ["open", "hop", "4"] => board.send_cmd(&BrewieCommand::P122),
-            ["close", "hop", "4"] => board.send_cmd(&BrewieCommand::P123),
 
-            ["start", "mash", "pump"] => board.send_cmd(&BrewieCommand::P124),
-            ["stop", "mash", "pump"] => board.send_cmd(&BrewieCommand::P125),
-            ["start", "boil", "pump"] => board.send_cmd(&BrewieCommand::P126),
-            ["stop", "boil", "pump"] => board.send_cmd(&BrewieCommand::P127),
+        let rows = Layout::default()
+            .direction(Direction::Vertical)
+            .margin(1)
+            .constraints(
+                [
+                    Constraint::Percentage(10),
+                    Constraint::Percentage(10),
+                    Constraint::Percentage(10),
+                    Constraint::Percentage(10),
+                    Constraint::Percentage(10),
+                    Constraint::Percentage(10),
+                    Constraint::Percentage(10),
+                    Constraint::Percentage(10),
+                    Constraint::Percentage(10),
+                    Constraint::Percentage(10),
+                ].as_ref()
+            )
+            .split(f.size());
 
-            ["open", "cool", "inlet"] => board.send_cmd(&BrewieCommand::P128),
-            ["close", "cool", "inlet"] => board.send_cmd(&BrewieCommand::P129),
-            ["open", "cool", "valve"] => board.send_cmd(&BrewieCommand::P130),
-            ["close", "cool", "valve"] => board.send_cmd(&BrewieCommand::P131),
-            ["open", "outlet", "valve"] => board.send_cmd(&BrewieCommand::P132),
-            ["close", "outlet", "valve"] => board.send_cmd(&BrewieCommand::P133),
+        let boil = Layout::default()
+            .direction(Direction::Horizontal)
+            .margin(1)
+            .constraints(
+                [
+                    Constraint::Percentage(33),
+                    Constraint::Percentage(34),
+                    Constraint::Percentage(33),
+                ].as_ref()
+            )
+            .split(rows[0]);
 
-            ["open", "mash", "return"] => board.send_cmd(&BrewieCommand::P134),
-            ["close", "mash", "return"] => board.send_cmd(&BrewieCommand::P135),
-            ["open", "boil", "return"] => board.send_cmd(&BrewieCommand::P136),
-            ["close", "boil", "return"] => board.send_cmd(&BrewieCommand::P137),
+        let block = Paragraph::new("Boil pump")
+            .block(Block::default().borders(Borders::ALL))
+            .alignment(Alignment::Center);
+        f.render_widget(block, boil[0]);
 
-            ["set", "mash", "heater", temp_str] => {
-                let temp: u16 = match temp_str.parse() {
-                    Ok(temp) => temp,
-                    Err(_) => { println!("Invalid temperature: {}", temp_str); continue }
-                };
+        let block = Paragraph::new("Boil return")
+            .block(Block::default().borders(Borders::ALL))
+            .alignment(Alignment::Center);
+        f.render_widget(block, boil[1]);
 
-                board.send_cmd(&BrewieCommand::P150(temp))
-            },
+        let block = Paragraph::new("Boil inlet")
+            .block(Block::default().borders(Borders::ALL))
+            .alignment(Alignment::Center);
+        f.render_widget(block, boil[2]);
 
-            ["set", "boil", "heater", temp_str] => {
-                let temp: u16 = match temp_str.parse() {
-                    Ok(temp) => temp,
-                    Err(_) => { println!("Invalid temperature: {}", temp_str); continue }
-                };
+        let mash = Layout::default()
+            .direction(Direction::Horizontal)
+            .margin(1)
+            .constraints(
+                [
+                    Constraint::Percentage(33),
+                    Constraint::Percentage(34),
+                    Constraint::Percentage(33),
+                ].as_ref()
+            )
+            .split(rows[1]);
 
-                board.send_cmd(&BrewieCommand::P151(temp))
-            },
+        let block = Paragraph::new("Mash pump")
+            .block(Block::default().borders(Borders::ALL))
+            .alignment(Alignment::Center);
+        f.render_widget(block, mash[0]);
 
-            ["open", "hop", cage, ..] => { println!("Unknown hop cage: {}", cage); continue },
-            ["close", "hop", cage, ..] => { println!("Unknown hop cage: {}", cage); continue },
+        let block = Paragraph::new("Mash return")
+            .block(Block::default().borders(Borders::ALL))
+            .alignment(Alignment::Center);
+        f.render_widget(block, mash[1]);
 
-            ["open", valve, ..] => { println!("Unknown valve: {}", valve); continue },
-            ["close", valve, ..] => { println!("Unknown valve: {}", valve); continue },
+        let block = Paragraph::new("Mash inlet")
+            .block(Block::default().borders(Borders::ALL))
+            .alignment(Alignment::Center);
+        f.render_widget(block, mash[2]);
 
-            ["start", pump, ..] => { println!("Unknown pump: {}", pump); continue },
-            ["stop", pump, ..] => { println!("Unknown pump: {}", pump); continue },
+        let hops = Layout::default()
+            .direction(Direction::Horizontal)
+            .margin(1)
+            .constraints(
+                [
+                    Constraint::Percentage(25),
+                    Constraint::Percentage(25),
+                    Constraint::Percentage(25),
+                    Constraint::Percentage(25),
+                ].as_ref()
+            )
+            .split(rows[2]);
 
-            ["set", heater, ..] => { println!("Unknown heater: {}", heater); continue },
+        let block = Paragraph::new("Hop 1")
+            .block(Block::default().borders(Borders::ALL))
+            .alignment(Alignment::Center);
+        f.render_widget(block, hops[0]);
 
-            _ => { println!("Unknown command: {}", line); continue }
-        };
+        let block = Paragraph::new("Hop 2")
+            .block(Block::default().borders(Borders::ALL))
+            .alignment(Alignment::Center);
+        f.render_widget(block, hops[1]);
 
-        match result {
-            Ok(_) => println!("ok"),
-            Err(err) => println!("error: {}", err),
-        }
-    }
+        let block = Paragraph::new("Hop 3")
+            .block(Block::default().borders(Borders::ALL))
+            .alignment(Alignment::Center);
+        f.render_widget(block, hops[2]);
+
+        let block = Paragraph::new("Hop 4")
+            .block(Block::default().borders(Borders::ALL))
+            .alignment(Alignment::Center);
+        f.render_widget(block, hops[3]);
+
+        let valve = Layout::default()
+            .direction(Direction::Horizontal)
+            .margin(1)
+            .constraints(
+                [
+                    Constraint::Percentage(50),
+                    Constraint::Percentage(50),
+                ].as_ref()
+            )
+            .split(rows[3]);
+
+        let block = Paragraph::new("Outlet valve")
+            .block(Block::default().borders(Borders::ALL))
+            .alignment(Alignment::Center);
+        f.render_widget(block, valve[0]);
+
+        let block = Paragraph::new("Cool valve")
+            .block(Block::default().borders(Borders::ALL))
+            .alignment(Alignment::Center);
+        f.render_widget(block, valve[1]);
+
+        let inlet = Layout::default()
+            .direction(Direction::Horizontal)
+            .margin(1)
+            .constraints(
+                [
+                    Constraint::Percentage(50),
+                    Constraint::Percentage(50),
+                ].as_ref()
+            )
+            .split(rows[4]);
+
+        let block = Paragraph::new("Water inlet")
+            .block(Block::default().borders(Borders::ALL))
+            .alignment(Alignment::Center);
+        f.render_widget(block, inlet[0]);
+
+        let block = Paragraph::new("Cool inlet")
+            .block(Block::default().borders(Borders::ALL))
+            .alignment(Alignment::Center);
+        f.render_widget(block, inlet[1]);
+
+        let heater = Layout::default()
+            .direction(Direction::Horizontal)
+            .margin(1)
+            .constraints(
+                [
+                    Constraint::Percentage(50),
+                    Constraint::Percentage(50),
+                ].as_ref()
+            )
+            .split(rows[5]);
+
+        let block = Paragraph::new("Boil heater")
+            .block(Block::default().borders(Borders::ALL))
+            .alignment(Alignment::Center);
+        f.render_widget(block, heater[0]);
+
+        let block = Paragraph::new("Mash heater")
+            .block(Block::default().borders(Borders::ALL))
+            .alignment(Alignment::Center);
+        f.render_widget(block, heater[1]);
+
+        let block = Paragraph::new(format!("Water level: {}l", 0));
+        f.render_widget(block, rows[6]);
+
+        let block = Paragraph::new(format!("Mash temp: {:.1}ºC", 24.5));
+        f.render_widget(block, rows[7]);
+
+        let block = Paragraph::new(format!("Boil temp: {:.1}ºC", 24.6));
+        f.render_widget(block, rows[8]);
+
+        // let block = Block::default()
+        //     .title("Boil pump")
+        //     .borders(Borders::ALL);
+        // f.render_widget(block, boil[0]);
+
+        // let block = Block::default()
+        //     .title("Boil return")
+        //     .borders(Borders::ALL);
+        // f.render_widget(block, boil[1]);
+
+        // let block = Block::default()
+        //     .title("Boil inlet")
+        //     .borders(Borders::ALL);
+        // f.render_widget(block, boil[2]);
+
+        // let block = Block::default()
+        //     .title("Block")
+        //     .borders(Borders::ALL);
+        // f.render_widget(block, chunks[0]);
+        // let block = Block::default()
+        //     .title("Block 2")
+        //     .borders(Borders::ALL);
+        // f.render_widget(block, chunks[1]);
+    })?;
+
+    thread::sleep(Duration::from_millis(5000));
+
+    // restore terminal
+    disable_raw_mode()?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )?;
+    terminal.show_cursor()?;
+
+
+
+    // loop {
+    //     let line = match editor.readline("> ") {
+    //         Ok(line) => line,
+    //         Err(ReadlineError::Interrupted) => continue,
+    //         Err(ReadlineError::Eof) => break,
+    //         Err(err) => panic!("{}", err),
+    //     };
+
+    //     editor.add_history_entry(&line);
+
+    //     let result = match line.split_whitespace().collect::<Vec<&str>>().as_slice() {
+    //         ["open", "water", "inlet"] => board.send_cmd(&BrewieCommand::P110),
+    //         ["close", "water", "inlet"] => board.send_cmd(&BrewieCommand::P111),
+    //         ["open", "mash", "inlet"] => board.send_cmd(&BrewieCommand::P112),
+    //         ["close", "mash", "inlet"] => board.send_cmd(&BrewieCommand::P113),
+    //         ["open", "boil", "inlet"] => board.send_cmd(&BrewieCommand::P114),
+    //         ["close", "boil", "inlet"] => board.send_cmd(&BrewieCommand::P115),
+
+    //         ["open", "hop", "1"] => board.send_cmd(&BrewieCommand::P116),
+    //         ["close", "hop", "1"] => board.send_cmd(&BrewieCommand::P117),
+    //         ["open", "hop", "2"] => board.send_cmd(&BrewieCommand::P118),
+    //         ["close", "hop", "2"] => board.send_cmd(&BrewieCommand::P119),
+    //         ["open", "hop", "3"] => board.send_cmd(&BrewieCommand::P120),
+    //         ["close", "hop", "3"] => board.send_cmd(&BrewieCommand::P121),
+    //         ["open", "hop", "4"] => board.send_cmd(&BrewieCommand::P122),
+    //         ["close", "hop", "4"] => board.send_cmd(&BrewieCommand::P123),
+
+    //         ["start", "mash", "pump"] => board.send_cmd(&BrewieCommand::P124),
+    //         ["stop", "mash", "pump"] => board.send_cmd(&BrewieCommand::P125),
+    //         ["start", "boil", "pump"] => board.send_cmd(&BrewieCommand::P126),
+    //         ["stop", "boil", "pump"] => board.send_cmd(&BrewieCommand::P127),
+
+    //         ["open", "cool", "inlet"] => board.send_cmd(&BrewieCommand::P128),
+    //         ["close", "cool", "inlet"] => board.send_cmd(&BrewieCommand::P129),
+    //         ["open", "cool", "valve"] => board.send_cmd(&BrewieCommand::P130),
+    //         ["close", "cool", "valve"] => board.send_cmd(&BrewieCommand::P131),
+    //         ["open", "outlet", "valve"] => board.send_cmd(&BrewieCommand::P132),
+    //         ["close", "outlet", "valve"] => board.send_cmd(&BrewieCommand::P133),
+
+    //         ["open", "mash", "return"] => board.send_cmd(&BrewieCommand::P134),
+    //         ["close", "mash", "return"] => board.send_cmd(&BrewieCommand::P135),
+    //         ["open", "boil", "return"] => board.send_cmd(&BrewieCommand::P136),
+    //         ["close", "boil", "return"] => board.send_cmd(&BrewieCommand::P137),
+
+    //         ["exit", "dev", "mode"] => board.send_cmd(&BrewieCommand::P205(false)),
+    //         ["enter", "dev", "mode"] => board.send_cmd(&BrewieCommand::P205(true)),
+
+    //         ["set", "mash", "heater", temp_str] => {
+    //             let temp: u16 = match temp_str.parse() {
+    //                 Ok(temp) => temp,
+    //                 Err(_) => { println!("Invalid temperature: {}", temp_str); continue }
+    //             };
+
+    //             board.send_cmd(&BrewieCommand::P150(temp))
+    //         },
+
+    //         ["set", "boil", "heater", temp_str] => {
+    //             let temp: u16 = match temp_str.parse() {
+    //                 Ok(temp) => temp,
+    //                 Err(_) => { println!("Invalid temperature: {}", temp_str); continue }
+    //             };
+
+    //             board.send_cmd(&BrewieCommand::P151(temp))
+    //         },
+
+    //         ["open", "hop", cage, ..] => { println!("Unknown hop cage: {}", cage); continue },
+    //         ["close", "hop", cage, ..] => { println!("Unknown hop cage: {}", cage); continue },
+
+    //         ["open", valve, ..] => { println!("Unknown valve: {}", valve); continue },
+    //         ["close", valve, ..] => { println!("Unknown valve: {}", valve); continue },
+
+    //         ["start", pump, ..] => { println!("Unknown pump: {}", pump); continue },
+    //         ["stop", pump, ..] => { println!("Unknown pump: {}", pump); continue },
+
+    //         ["set", heater, ..] => { println!("Unknown heater: {}", heater); continue },
+
+    //         _ => { println!("Unknown command: {}", line); continue }
+    //     };
+
+    //     match result {
+    //         Ok(_) => println!("ok"),
+    //         Err(err) => println!("error: {}", err),
+    //     }
+    // }
+
+    Ok(())
 }
